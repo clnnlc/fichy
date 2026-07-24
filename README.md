@@ -4,7 +4,7 @@
 
 # fichy
 
-**f**inally **i** **c**an **h**ear **y**ou
+**f**inally, **i** **c**an **h**ear **y**ou
 
 A tiny Windows per‑app volume mixer with a global **hotkey overlay** and **custom hotkeys** to turn individual programs up or down. Ships as a single `.exe`, lives in the tray, optional autostart.
 
