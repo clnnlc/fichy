@@ -49,6 +49,7 @@ Windows lets you set per‑app volume — but it's buried in Settings, there's n
 | **Open settings** | Right‑click the tray icon → *Settings…* |
 | **Change overlay hotkey** | Click the hotkey field in Settings, then press your combo (Backspace/Del clears, Esc cancels) |
 | **Add a per‑app hotkey** | Settings → *＋ Add program* → pick a program (`▼` lists what's currently playing) → assign *Louder / Quieter / Mute* |
+| **Use key combinations** | Any field accepts a single key or any mix of Ctrl / Alt / Shift / Win, e.g. `Ctrl+Alt+Num+` |
 | **Enable autostart** | Settings → *Start automatically with Windows* |
 
 Config is stored at `%AppData%\fichy\settings.json`.
@@ -79,6 +80,7 @@ dotnet publish -c Release
 |---------|----------|
 | Per‑app volume | [NAudio](https://github.com/naudio/NAudio) over WASAPI (`IAudioSessionManager2` / `ISimpleAudioVolume`) |
 | Global hotkeys | Win32 `RegisterHotKey` on a message‑only window |
+| Recording a hotkey | Low‑level keyboard hook (`WH_KEYBOARD_LL`), so Alt and Win combos can be captured too |
 | Layout‑correct key labels | `ToUnicodeEx` against the active keyboard layout |
 | Autostart | `HKCU\…\CurrentVersion\Run` |
 | Overlay / OSD | Borderless, top‑most WPF windows |
@@ -89,7 +91,7 @@ dotnet publish -c Release
 ```
 Model/       AppSettings, VolumeBinding, HotkeyGesture   (config model)
 Services/    AudioManager, AudioSession, SessionGroup    (WASAPI + per-app aggregation)
-             HotkeyManager, KeyNames                     (global hotkeys, layout labels)
+             HotkeyManager, CaptureHook, KeyNames        (global hotkeys, recording, labels)
              AutostartService, SettingsService, Logger
 UI/          OverlayWindow, SettingsWindow, OsdWindow, HotkeyBox
 Themes/      Dark.xaml                                   (dark theme + control styles)
