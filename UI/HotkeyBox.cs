@@ -2,17 +2,22 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using VolumeMixer.Model;
+using VolumeMixer.Services;
 
 namespace VolumeMixer.UI;
 
 /// <summary>
-/// A button that captures a global-hotkey gesture. Click it, then press the
-/// desired combination (e.g. Ctrl+Alt+Up). Backspace/Delete clears it, Escape
-/// cancels capture.
+/// A button that records a global-hotkey combination. Click it, then press the
+/// desired combination — any number of modifiers plus one key, e.g.
+/// Ctrl+Alt+Num+ or Ctrl+Shift+F9. Backspace/Delete clears it, Escape cancels.
+///
+/// Recording runs through a low-level keyboard hook rather than WPF key events,
+/// because WPF swallows Alt (menu mode) and Windows (Start menu) combinations
+/// before they ever reach a control.
 /// </summary>
 public sealed class HotkeyBox : Button
 {
-    private bool _capturing;
+    private readonly CaptureHook _hook = new();
 
     public static readonly DependencyProperty GestureProperty =
         DependencyProperty.Register(nameof(Gesture), typeof(HotkeyGesture), typeof(HotkeyBox),
@@ -32,66 +37,62 @@ public sealed class HotkeyBox : Button
         Focusable = true;
         MinWidth = 150;
         UpdateText();
+
+        _hook.Captured += OnHookCaptured;
         Click += (_, _) => BeginCapture();
         LostFocus += (_, _) => CancelCapture();
+        Unloaded += (_, _) => _hook.Dispose();
     }
 
     private static void OnGestureChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is HotkeyBox box && !box._capturing) box.UpdateText();
+        if (d is HotkeyBox box && !box._hook.IsActive) box.UpdateText();
     }
 
     private void BeginCapture()
     {
-        _capturing = true;
+        if (_hook.IsActive) return;
         Content = "› Press a key …";
+        _hook.Start();
     }
 
     private void CancelCapture()
     {
-        if (!_capturing) return;
-        _capturing = false;
+        if (!_hook.IsActive) return;
+        _hook.Stop();
         UpdateText();
     }
 
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    /// <summary>Called from the hook thread's message pump; marshal to the UI thread.</summary>
+    private void OnHookCaptured(Key key, ModifierKeys modifiers)
     {
-        if (!_capturing)
+        Dispatcher.BeginInvoke(new Action(() =>
         {
-            base.OnPreviewKeyDown(e);
-            return;
-        }
+            if (!_hook.IsActive) return;
 
-        e.Handled = true;
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (key == Key.Escape)
+            {
+                CancelCapture();
+                return;
+            }
 
-        if (key == Key.Escape)
-        {
-            CancelCapture();
-            return;
-        }
+            if (key is Key.Back or Key.Delete)
+            {
+                _hook.Stop();
+                Gesture = HotkeyGesture.Empty;
+                UpdateText();
+                GestureCommitted?.Invoke(this, EventArgs.Empty);
+                return;
+            }
 
-        if (key is Key.Back or Key.Delete)
-        {
-            _capturing = false;
-            Gesture = HotkeyGesture.Empty;
+            if (key == Key.None) return;
+
+            _hook.Stop();
+            Gesture = new HotkeyGesture(modifiers, key);
             UpdateText();
             GestureCommitted?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
-        // Ignore standalone modifier presses; wait for a real key.
-        if (IsModifier(key)) return;
-
-        _capturing = false;
-        Gesture = new HotkeyGesture(Keyboard.Modifiers, key);
-        UpdateText();
-        GestureCommitted?.Invoke(this, EventArgs.Empty);
+        }));
     }
-
-    private static bool IsModifier(Key k) => k is
-        Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
-        Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.System;
 
     private void UpdateText() => Content = Gesture is null || Gesture.IsEmpty ? "(none)" : Gesture.ToString();
 }

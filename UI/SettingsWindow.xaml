@@ -54,9 +54,11 @@
                             Click="AddBinding_Click"/>
                 </DockPanel>
 
-                <TextBlock Text="Assign keys to raise/lower (and optionally mute) each program. The target is matched by its process name."
-                           Foreground="{StaticResource SubtleBrush}" FontSize="12" TextWrapping="Wrap"
-                           Margin="0,0,0,12"/>
+                <TextBlock Foreground="{StaticResource SubtleBrush}" FontSize="12" TextWrapping="Wrap"
+                           Margin="0,0,0,12" LineHeight="17">
+                    Assign keys to raise/lower (and optionally mute) each program. The target is matched by its process name.<LineBreak/>
+                    Click a field and press your combination — single keys or any mix of Ctrl / Alt / Shift / Win (e.g. Ctrl+Alt+Num+). Backspace clears, Esc cancels.
+                </TextBlock>
 
                 <StackPanel x:Name="BindingsPanel"/>
 
