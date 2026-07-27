@@ -34,6 +34,21 @@
                         <CheckBox x:Name="FocusLostCheck" Content="Close the overlay when it loses focus"
                                   Foreground="{StaticResource TextBrush}" Margin="0,4" FontSize="13"/>
 
+                        <CheckBox x:Name="RememberCheck" Margin="0,4" FontSize="13"
+                                  Foreground="{StaticResource TextBrush}">
+                            <StackPanel>
+                                <TextBlock Text="Remember each app's volume"/>
+                                <TextBlock Foreground="{StaticResource SubtleBrush}" FontSize="11.5"
+                                           TextWrapping="Wrap" MaxWidth="470"
+                                           Text="Players like Spotify or Amazon Music open a new audio session for every track, which always starts at 100%. This restores your level automatically."/>
+                            </StackPanel>
+                        </CheckBox>
+
+                        <Button x:Name="ForgetButton" Content="Forget remembered volumes"
+                                Style="{StaticResource FlatButton}" HorizontalAlignment="Left"
+                                Margin="24,6,0,0" Padding="10,5" FontSize="12"
+                                Click="Forget_Click"/>
+
                         <DockPanel Margin="0,10,0,0">
                             <TextBlock Text="Default volume step per key press"
                                        VerticalAlignment="Center" DockPanel.Dock="Left"/>

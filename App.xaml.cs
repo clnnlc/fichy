@@ -14,6 +14,7 @@ public partial class App : Application
     public AudioManager Audio { get; } = new();
 
     private HotkeyManager _hotkeys = null!;
+    private VolumeWatcher _volumeWatcher = null!;
     private WinForms.NotifyIcon _tray = null!;
     private OverlayWindow? _overlay;
     private SettingsWindow? _settingsWindow;
@@ -27,8 +28,14 @@ public partial class App : Application
         // Keep the settings flag in sync with what the registry actually says.
         Settings.Current.Autostart = AutostartService.IsEnabled();
 
+        VolumeMemory.Configure(Settings);
+
         _hotkeys = new HotkeyManager();
         var failed = RebuildHotkeys();
+
+        // Restores levels for players that open a new session per track.
+        _volumeWatcher = new VolumeWatcher();
+        _volumeWatcher.Start();
 
         SetupTray();
 
@@ -188,6 +195,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _volumeWatcher?.Dispose();
+        VolumeMemory.Flush();
         _hotkeys?.Dispose();
         Audio.Dispose();
         if (_tray is not null)

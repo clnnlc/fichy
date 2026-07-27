@@ -35,6 +35,8 @@ public partial class SettingsWindow : Window
         OverlayHotkeyBox.Gesture = s.ToggleOverlay;
         AutostartCheck.IsChecked = AutostartService.IsEnabled();
         FocusLostCheck.IsChecked = s.CloseOverlayOnFocusLost;
+        RememberCheck.IsChecked = s.RememberVolumes;
+        UpdateForgetButton();
         StepBox.Text = Math.Round(s.DefaultStep * 100).ToString(CultureInfo.InvariantCulture);
 
         _activeProcesses = GetActiveProcesses();
@@ -223,6 +225,7 @@ public partial class SettingsWindow : Window
             s.ToggleOverlay = OverlayHotkeyBox.Gesture;
 
         s.CloseOverlayOnFocusLost = FocusLostCheck.IsChecked == true;
+        s.RememberVolumes = RememberCheck.IsChecked == true;
 
         if (int.TryParse(StepBox.Text, out var pct))
             s.DefaultStep = Math.Clamp(pct, 1, 100) / 100f;
@@ -252,6 +255,23 @@ public partial class SettingsWindow : Window
             StatusText.Foreground = (Brush)TryFindResource("SubtleBrush");
             StatusText.Text = $"Saved • {DateTime.Now:HH:mm:ss} • {s.Bindings.Count} per-app hotkey(s) active";
         }
+    }
+
+    private void Forget_Click(object sender, RoutedEventArgs e)
+    {
+        VolumeMemory.Clear();
+        UpdateForgetButton();
+        StatusText.Foreground = (Brush)TryFindResource("SubtleBrush");
+        StatusText.Text = "Remembered volumes cleared";
+    }
+
+    private void UpdateForgetButton()
+    {
+        int count = App.Instance.Settings.Current.RememberedVolumes.Count;
+        ForgetButton.Content = count == 0
+            ? "No remembered volumes yet"
+            : $"Forget remembered volumes ({count})";
+        ForgetButton.IsEnabled = count > 0;
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

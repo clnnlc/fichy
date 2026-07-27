@@ -88,6 +88,7 @@ public sealed class AudioManager : IDisposable
         var target = Normalize(processName);
         float newVolume = -1f;
         bool found = false;
+        bool muted = false;
 
         foreach (var device in GetRenderDevices())
         {
@@ -106,11 +107,15 @@ public sealed class AudioManager : IDisposable
                     if (v > 0f) vol.Mute = false;
                     newVolume = v;
                     found = true;
+                    muted = vol.Mute;
                 }
             }
             catch { /* device gone */ }
             finally { device.Dispose(); }
         }
+
+        if (found)
+            VolumeMemory.Remember(processName, newVolume, muted);
 
         return found ? newVolume : -1f;
     }
@@ -141,6 +146,9 @@ public sealed class AudioManager : IDisposable
             catch { }
             finally { device.Dispose(); }
         }
+
+        if (state is not null)
+            VolumeMemory.RememberMute(processName, state.Value);
 
         return state;
     }

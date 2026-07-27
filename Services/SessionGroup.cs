@@ -47,6 +47,7 @@ public sealed class SessionGroup : INotifyPropertyChanged
         {
             foreach (var s in _sessions)
                 s.VolumePercent = value;
+            VolumeMemory.Remember(ProcessName, (float)(value / 100.0), IsMuted);
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsMuted));
         }
@@ -60,6 +61,7 @@ public sealed class SessionGroup : INotifyPropertyChanged
         {
             foreach (var s in _sessions)
                 s.IsMuted = value;
+            VolumeMemory.RememberMute(ProcessName, value);
             OnPropertyChanged();
         }
     }

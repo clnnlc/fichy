@@ -29,6 +29,7 @@ Windows lets you set per‑app volume — but it's buried in Settings, there's n
 - 🎚️ **Every audio output source** — enumerates all active render devices via the Windows Core Audio API (WASAPI) and shows one row per program, aggregated across *all* devices (just like the Windows mixer).
 - ⌨️ **Overlay on a hotkey** — show/hide the mixer from anywhere. Default: `Ctrl+Alt+Shift+M`.
 - 🎯 **Custom per‑app hotkeys** — bind *louder* / *quieter* / *mute* keys per program with an adjustable step. A quick on‑screen display shows the change.
+- 🔁 **Volume that sticks** — Spotify, Amazon Music and friends open a *new* audio session for every track, and each one starts at 100%, which is why their volume keeps resetting. fichy remembers your level per app and restores it the moment a new session appears.
 - 🖱️ **Live sliders & peak meters** — scroll over a slider to change its volume; watch real‑time levels.
 - 📦 **One single `.exe`** — self‑contained, no .NET install required.
 - 🚀 **Autostart** — one checkbox (per‑user registry, no admin rights).
@@ -51,6 +52,7 @@ Windows lets you set per‑app volume — but it's buried in Settings, there's n
 | **Add a per‑app hotkey** | Settings → *＋ Add program* → pick a program (`▼` lists what's currently playing) → assign *Louder / Quieter / Mute* |
 | **Use key combinations** | Any field accepts a single key or any mix of Ctrl / Alt / Shift / Win, e.g. `Ctrl+Alt+Num+` |
 | **Enable autostart** | Settings → *Start automatically with Windows* |
+| **Stop a player resetting its volume** | Leave *Remember each app's volume* on (default). Set the level once — fichy re‑applies it to every new session. |
 
 Config is stored at `%AppData%\fichy\settings.json`.
 
@@ -81,6 +83,7 @@ dotnet publish -c Release
 | Per‑app volume | [NAudio](https://github.com/naudio/NAudio) over WASAPI (`IAudioSessionManager2` / `ISimpleAudioVolume`) |
 | Global hotkeys | Win32 `RegisterHotKey` on a message‑only window |
 | Recording a hotkey | Low‑level keyboard hook (`WH_KEYBOARD_LL`), so Alt and Win combos can be captured too |
+| Sticky volume | `IAudioSessionNotification` for instant correction, plus a poll that only touches session instances it hasn't seen before — so changes made in the Windows mixer are learned, never fought |
 | Layout‑correct key labels | `ToUnicodeEx` against the active keyboard layout |
 | Autostart | `HKCU\…\CurrentVersion\Run` |
 | Overlay / OSD | Borderless, top‑most WPF windows |
@@ -91,6 +94,7 @@ dotnet publish -c Release
 ```
 Model/       AppSettings, VolumeBinding, HotkeyGesture   (config model)
 Services/    AudioManager, AudioSession, SessionGroup    (WASAPI + per-app aggregation)
+             VolumeMemory, VolumeWatcher                 (sticky per-app volume)
              HotkeyManager, CaptureHook, KeyNames        (global hotkeys, recording, labels)
              AutostartService, SettingsService, Logger
 UI/          OverlayWindow, SettingsWindow, OsdWindow, HotkeyBox

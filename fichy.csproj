@@ -11,7 +11,7 @@
     <RootNamespace>VolumeMixer</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Product>fichy</Product>
     <Description>fichy — finally I can hear you. Windows per-app volume mixer with a hotkey overlay.</Description>
     <Company>fichy</Company>

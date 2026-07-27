@@ -21,4 +21,14 @@ public sealed class AppSettings
 
     /// <summary>Close the overlay automatically when it loses focus.</summary>
     public bool CloseOverlayOnFocusLost { get; set; } = true;
+
+    /// <summary>
+    /// Re-apply a program's volume to sessions it opens later. Players such as
+    /// Spotify or Amazon Music create a fresh audio session per track, which
+    /// always starts at 100%, so without this their volume resets every song.
+    /// </summary>
+    public bool RememberVolumes { get; set; } = true;
+
+    /// <summary>Last volume fichy set per process name (lower-case, no extension).</summary>
+    public Dictionary<string, RememberedLevel> RememberedVolumes { get; set; } = new();
 }
