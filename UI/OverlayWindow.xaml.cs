@@ -39,9 +39,76 @@ public partial class OverlayWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadSessions();
+        RefreshDeviceName();
         PositionBottomRight();
         _meterTimer.Start();
         _refreshTimer.Start();
+    }
+
+    private void RefreshDeviceName()
+    {
+        var current = DeviceSwitcher.GetOutputDevices().FirstOrDefault(d => d.IsDefault);
+        DeviceName.Text = current?.Name ?? "No output device";
+    }
+
+    private void DeviceButton_Click(object sender, RoutedEventArgs e)
+    {
+        var devices = DeviceSwitcher.GetOutputDevices();
+        var menu = new ContextMenu { PlacementTarget = DeviceButton, IsOpen = false };
+
+        if (devices.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(no active output devices)", IsEnabled = false });
+        }
+        else
+        {
+            foreach (var d in devices)
+            {
+                var item = new MenuItem
+                {
+                    Header = d.Name,
+                    IsChecked = d.IsDefault,
+                    IsCheckable = true,
+                };
+                var id = d.Id;
+                item.Click += (_, _) => SwitchDevice(id);
+                menu.Items.Add(item);
+            }
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void SwitchDevice(string deviceId)
+    {
+        if (!DeviceSwitcher.SetDefault(deviceId))
+        {
+            DeviceName.Text = "Could not switch device";
+            return;
+        }
+
+        RefreshDeviceName();
+        // Sessions follow the new endpoint; rebuild so the list isn't stale.
+        LoadSessions();
+    }
+
+    private void Row_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not SessionGroup g) return;
+        e.Handled = true;
+
+        // The overlay closes on focus loss, which would take the dialog's owner
+        // with it — detach that behaviour for as long as the dialog is up.
+        bool closeOnBlur = App.Instance.Settings.Current.CloseOverlayOnFocusLost;
+        App.Instance.Settings.Current.CloseOverlayOnFocusLost = false;
+
+        var dialog = new AppHotkeyWindow(g.ProcessName, g.DisplayName) { Owner = this };
+        dialog.Closed += (_, _) =>
+        {
+            App.Instance.Settings.Current.CloseOverlayOnFocusLost = closeOnBlur;
+            Activate();
+        };
+        dialog.ShowDialog();
     }
 
     private void PositionBottomRight()

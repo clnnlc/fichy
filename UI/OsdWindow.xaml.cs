@@ -20,9 +20,24 @@ public partial class OsdWindow : Window
         _hideTimer.Tick += (_, _) => { _hideTimer.Stop(); Hide(); };
     }
 
-    public void ShowOverlay(string label, int volumePercent, bool muted, bool notFound)
+    public void ShowOverlay(string label, int volumePercent, bool muted, bool notFound,
+        string? detail = null)
     {
         LabelText.Text = label;
+
+        // A profile has no single level to draw — show what it did instead.
+        if (detail is not null)
+        {
+            Glyph.Text = "🎚";
+            PercentText.Text = detail;
+            Fill.Background = (Brush)Application.Current.Resources["AccentBrush"];
+            Fill.Width = BarMaxWidth;
+            Show();
+            Reposition();
+            _hideTimer.Stop();
+            _hideTimer.Start();
+            return;
+        }
 
         if (notFound)
         {

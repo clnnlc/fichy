@@ -30,6 +30,10 @@ Windows lets you set per‑app volume — but it's buried in Settings, there's n
 - ⌨️ **Overlay on a hotkey** — show/hide the mixer from anywhere. Default: `Ctrl+Alt+Shift+M`.
 - 🎯 **Custom per‑app hotkeys** — bind *louder* / *quieter* / *mute* keys per program with an adjustable step. A quick on‑screen display shows the change.
 - 🔁 **Volume that sticks** — Spotify, Amazon Music and friends open a *new* audio session for every track, and each one starts at 100%, which is why their volume keeps resetting. fichy remembers your level per app and restores it the moment a new session appears.
+- 🎧 **Switch output device** — pick your headphones or speakers straight from the overlay; it sets the Windows default for media *and* communication apps.
+- 🎚️ **Profiles** — save your whole mix (gaming, music, calls) and bring it back with one hotkey.
+- ⚡ **Hotkeys without detours** — right-click any row in the overlay to bind its louder/quieter/mute keys, no typing process names.
+- ⬆️ **Built-in updater** — checks GitHub for new releases and installs them on request; it never updates on its own.
 - 🖱️ **Live sliders & peak meters** — scroll over a slider to change its volume; watch real‑time levels.
 - 📦 **One single `.exe`** — self‑contained, no .NET install required.
 - 🚀 **Autostart** — one checkbox (per‑user registry, no admin rights).
@@ -53,6 +57,10 @@ Windows lets you set per‑app volume — but it's buried in Settings, there's n
 | **Use key combinations** | Any field accepts a single key or any mix of Ctrl / Alt / Shift / Win, e.g. `Ctrl+Alt+Num+` |
 | **Enable autostart** | Settings → *Start automatically with Windows* |
 | **Stop a player resetting its volume** | Leave *Remember each app's volume* on (default). Set the level once — fichy re‑applies it to every new session. |
+| **Switch output device** | Click the device row at the top of the overlay and pick one |
+| **Bind hotkeys quickly** | Right‑click a row in the overlay → assign *Louder / Quieter / Mute* for that app |
+| **Save a mix as a profile** | Settings → *＋ Save current mix*, name it, give it a hotkey |
+| **Update** | Settings → Updates → *Check now* → *Download & install* |
 
 Config is stored at `%AppData%\fichy\settings.json`.
 
@@ -84,6 +92,9 @@ dotnet publish -c Release
 | Global hotkeys | Win32 `RegisterHotKey` on a message‑only window |
 | Recording a hotkey | Low‑level keyboard hook (`WH_KEYBOARD_LL`), so Alt and Win combos can be captured too |
 | Sticky volume | `IAudioSessionNotification` for instant correction, plus a poll that only touches session instances it hasn't seen before — so changes made in the Windows mixer are learned, never fought |
+| Device hot‑plug | `IMMNotificationClient`, so endpoints added after startup are picked up too |
+| Switching the default output | `IPolicyConfig` — the same internal interface the Settings app uses; Windows exposes no public API for this |
+| Updates | GitHub releases API; the running image is renamed aside and replaced, then cleaned up on the next start |
 | Layout‑correct key labels | `ToUnicodeEx` against the active keyboard layout |
 | Autostart | `HKCU\…\CurrentVersion\Run` |
 | Overlay / OSD | Borderless, top‑most WPF windows |
@@ -93,11 +104,14 @@ dotnet publish -c Release
 
 ```
 Model/       AppSettings, VolumeBinding, HotkeyGesture   (config model)
+             RememberedLevel, VolumeProfile
 Services/    AudioManager, AudioSession, SessionGroup    (WASAPI + per-app aggregation)
              VolumeMemory, VolumeWatcher                 (sticky per-app volume)
+             DeviceSwitcher, DeviceNotifier              (output device selection, hot-plug)
              HotkeyManager, CaptureHook, KeyNames        (global hotkeys, recording, labels)
-             AutostartService, SettingsService, Logger
-UI/          OverlayWindow, SettingsWindow, OsdWindow, HotkeyBox
+             UpdateService, AutostartService, SettingsService, Logger
+UI/          OverlayWindow, SettingsWindow, OsdWindow
+             AppHotkeyWindow, HotkeyBox
 Themes/      Dark.xaml                                   (dark theme + control styles)
 ```
 

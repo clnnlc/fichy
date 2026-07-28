@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
+using VolumeMixer.Model;
 
 namespace VolumeMixer.Services;
 
@@ -151,6 +152,52 @@ public sealed class AudioManager : IDisposable
             VolumeMemory.RememberMute(processName, state.Value);
 
         return state;
+    }
+
+    /// <summary>
+    /// Applies a whole set of process→level entries in one enumeration pass and
+    /// records them, so the levels also survive the players that recreate their
+    /// session per track. Returns how many programs were actually matched.
+    /// </summary>
+    public int ApplyLevels(IReadOnlyDictionary<string, RememberedLevel> levels)
+    {
+        if (levels.Count == 0) return 0;
+
+        var wanted = levels.ToDictionary(kv => Normalize(kv.Key), kv => kv.Value);
+        var matched = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var device in GetRenderDevices())
+        {
+            try
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+                for (int i = 0; i < sessions.Count; i++)
+                {
+                    var ctrl = sessions[i];
+                    if (ctrl.State == AudioSessionState.AudioSessionStateExpired) continue;
+
+                    var name = AudioSession.ResolveProcessName(ctrl);
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    var key = Normalize(name);
+                    if (!wanted.TryGetValue(key, out var level)) continue;
+
+                    var vol = ctrl.SimpleAudioVolume;
+                    vol.Volume = Math.Clamp(level.Volume, 0f, 1f);
+                    vol.Mute = level.Muted;
+                    matched.Add(key);
+                }
+            }
+            catch { }
+            finally { device.Dispose(); }
+        }
+
+        // Remember every entry, not just the matched ones: a program that is
+        // closed right now should still come up at the profile's level later.
+        foreach (var (key, level) in wanted)
+            VolumeMemory.Remember(key, level.Volume, level.Muted);
+
+        return matched.Count;
     }
 
     private static bool MatchesProcess(AudioSessionControl ctrl, string normalizedTarget)

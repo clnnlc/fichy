@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:VolumeMixer.UI"
         Title="fichy — Settings"
-        Width="640" Height="680" MinWidth="560" MinHeight="480"
+        Width="660" Height="780" MinWidth="560" MinHeight="480"
         Background="{StaticResource BgBrush}" WindowStartupLocation="CenterScreen">
 
     <Grid Margin="22">
@@ -80,6 +80,45 @@
                 <TextBlock x:Name="NoBindingsHint" Text="No per-app hotkeys yet."
                            Foreground="{StaticResource SubtleBrush}" FontSize="12.5"
                            Margin="2,4,0,0" Visibility="Collapsed"/>
+
+                <!-- Profiles -->
+                <DockPanel Margin="0,26,0,12" LastChildFill="False">
+                    <TextBlock Text="Profiles" FontSize="18" FontWeight="Bold" DockPanel.Dock="Left"/>
+                    <Button x:Name="AddProfileButton" Content="＋ Save current mix"
+                            Style="{StaticResource AccentButton}" DockPanel.Dock="Right"
+                            Click="AddProfile_Click"/>
+                </DockPanel>
+
+                <TextBlock Text="Captures the volume of everything currently playing. Assign a hotkey to switch your whole mix at once."
+                           Foreground="{StaticResource SubtleBrush}" FontSize="12" TextWrapping="Wrap"
+                           Margin="0,0,0,12"/>
+
+                <StackPanel x:Name="ProfilesPanel"/>
+
+                <TextBlock x:Name="NoProfilesHint" Text="No profiles yet."
+                           Foreground="{StaticResource SubtleBrush}" FontSize="12.5"
+                           Margin="2,4,0,0" Visibility="Collapsed"/>
+
+                <!-- Updates -->
+                <TextBlock Text="Updates" FontSize="18" FontWeight="Bold" Margin="0,26,0,12"/>
+                <Border Background="{StaticResource CardBrush}" CornerRadius="12" Padding="18">
+                    <StackPanel>
+                        <CheckBox x:Name="UpdateCheck" Content="Check for new versions on startup"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,0,10" FontSize="13"/>
+                        <DockPanel>
+                            <Button x:Name="CheckUpdateButton" Content="Check now"
+                                    Style="{StaticResource FlatButton}" DockPanel.Dock="Left"
+                                    Padding="14,6" Click="CheckUpdate_Click"/>
+                            <Button x:Name="InstallUpdateButton" Content="Download &amp; install"
+                                    Style="{StaticResource AccentButton}" DockPanel.Dock="Left"
+                                    Margin="8,0,0,0" Padding="14,6" Visibility="Collapsed"
+                                    Click="InstallUpdate_Click"/>
+                            <TextBlock x:Name="UpdateStatus" VerticalAlignment="Center"
+                                       Margin="12,0,0,0" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{StaticResource SubtleBrush}"/>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 

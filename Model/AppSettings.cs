@@ -31,4 +31,10 @@ public sealed class AppSettings
 
     /// <summary>Last volume fichy set per process name (lower-case, no extension).</summary>
     public Dictionary<string, RememberedLevel> RememberedVolumes { get; set; } = new();
+
+    /// <summary>Saved mixes that can be applied together, optionally by hotkey.</summary>
+    public List<VolumeProfile> Profiles { get; set; } = new();
+
+    /// <summary>Ask GitHub about newer releases on startup (never installs on its own).</summary>
+    public bool CheckForUpdates { get; set; } = true;
 }

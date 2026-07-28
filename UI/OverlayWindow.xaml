@@ -23,6 +23,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Header -->
@@ -44,15 +45,34 @@
                 </StackPanel>
             </Grid>
 
+            <!-- Output device selector -->
+            <Button x:Name="DeviceButton" Grid.Row="1" Style="{StaticResource FlatButton}"
+                    Margin="0,0,0,10" Padding="12,8" HorizontalContentAlignment="Stretch"
+                    Click="DeviceButton_Click" ToolTip="Switch the default output device">
+                <DockPanel LastChildFill="True">
+                    <TextBlock Text="🔈" FontSize="13" Margin="0,0,9,0" DockPanel.Dock="Left"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="▾" FontSize="12" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               Foreground="{StaticResource SubtleBrush}" Margin="8,0,0,0"/>
+                    <StackPanel>
+                        <TextBlock Text="Output device" FontSize="10"
+                                   Foreground="{StaticResource SubtleBrush}"/>
+                        <TextBlock x:Name="DeviceName" Text="—" FontSize="12.5" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DockPanel>
+            </Button>
+
             <!-- Session list -->
-            <ScrollViewer Grid.Row="1" MaxHeight="520" VerticalScrollBarVisibility="Auto"
+            <ScrollViewer Grid.Row="2" MaxHeight="520" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="SessionList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Background="{StaticResource CardBrush}" CornerRadius="12"
                                     Padding="14,11" Margin="0,0,0,8"
-                                    MouseWheel="Row_MouseWheel">
+                                    MouseWheel="Row_MouseWheel"
+                                    MouseRightButtonUp="Row_RightClick">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -111,13 +131,13 @@
             </ScrollViewer>
 
             <!-- Empty state -->
-            <TextBlock x:Name="EmptyHint" Grid.Row="1" Text="No apps are playing audio.&#10;Start some playback (music or a video) and it'll show up here."
+            <TextBlock x:Name="EmptyHint" Grid.Row="2" Text="No apps are playing audio.&#10;Start some playback (music or a video) and it'll show up here."
                        Foreground="{StaticResource SubtleBrush}" TextAlignment="Center"
                        Margin="0,30" Visibility="Collapsed" FontSize="13" LineHeight="20"/>
 
-            <TextBlock Grid.Row="2" Margin="2,10,0,0" FontSize="11"
+            <TextBlock Grid.Row="3" Margin="2,10,0,0" FontSize="11"
                        Foreground="{StaticResource SubtleBrush}"
-                       Text="Scroll over a slider to change its volume • Esc closes"/>
+                       Text="Scroll a slider to change volume • right-click a row for hotkeys • Esc closes"/>
         </Grid>
     </Border>
 </Window>

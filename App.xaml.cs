@@ -24,6 +24,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Remove the executable a previous update moved aside.
+        UpdateService.CleanUpOldVersion();
+
         Settings.Load();
         // Keep the settings flag in sync with what the registry actually says.
         Settings.Current.Autostart = AutostartService.IsEnabled();
@@ -43,6 +46,9 @@ public partial class App : Application
 
         if (failed.Count > 0)
             WarnAboutFailedHotkeys(failed);
+
+        if (Settings.Current.CheckForUpdates)
+            _ = NotifyIfUpdateAvailableAsync();
 
         // Diagnostic / convenience: open the overlay immediately.
         if (e.Args.Contains("--overlay"))
@@ -116,13 +122,30 @@ public partial class App : Application
         foreach (var binding in Settings.Current.Bindings)
         {
             var b = binding; // capture
-            Try(b.VolumeUp, $"{b.Label} lauter", () => Dispatcher.Invoke(() => ApplyVolume(b, +b.Step)));
-            Try(b.VolumeDown, $"{b.Label} leiser", () => Dispatcher.Invoke(() => ApplyVolume(b, -b.Step)));
+            Try(b.VolumeUp, $"{b.Label} louder", () => Dispatcher.Invoke(() => ApplyVolume(b, +b.Step)));
+            Try(b.VolumeDown, $"{b.Label} quieter", () => Dispatcher.Invoke(() => ApplyVolume(b, -b.Step)));
             if (b.Mute is not null)
-                Try(b.Mute, $"{b.Label} stumm", () => Dispatcher.Invoke(() => ApplyMute(b)));
+                Try(b.Mute, $"{b.Label} mute", () => Dispatcher.Invoke(() => ApplyMute(b)));
+        }
+
+        foreach (var profile in Settings.Current.Profiles)
+        {
+            var p = profile; // capture
+            Try(p.Hotkey, $"profile {p.Label}", () => Dispatcher.Invoke(() => ApplyProfile(p)));
         }
 
         return failed;
+    }
+
+    /// <summary>Applies a saved mix and reports what happened on screen.</summary>
+    public void ApplyProfile(VolumeProfile profile)
+    {
+        int matched = Audio.ApplyLevels(profile.Levels);
+        ShowOsd(profile.Label, -1, muted: false, notFound: false,
+            detail: matched == 0
+                ? "no matching app playing"
+                : $"{matched} of {profile.Levels.Count} apps set");
+        _overlay?.RefreshLive();
     }
 
     private void ApplyVolume(VolumeBinding b, float delta)
@@ -179,6 +202,23 @@ public partial class App : Application
         _settingsWindow.Activate();
     }
 
+    /// <summary>
+    /// Reports a newer release in the tray. It only ever informs — installing
+    /// stays a deliberate click in Settings.
+    /// </summary>
+    private async Task NotifyIfUpdateAvailableAsync()
+    {
+        try
+        {
+            var info = await UpdateService.CheckAsync();
+            if (info is null) return;
+
+            Dispatcher.Invoke(() => _tray.ShowBalloonTip(6000, $"fichy {info.Tag} is available",
+                "Open Settings → Updates to install it.", WinForms.ToolTipIcon.Info));
+        }
+        catch { }
+    }
+
     private void WarnAboutFailedHotkeys(List<string> failed)
     {
         var list = string.Join(", ", failed);
@@ -187,10 +227,11 @@ public partial class App : Application
             WinForms.ToolTipIcon.Warning);
     }
 
-    private void ShowOsd(string label, int volumePercent, bool muted, bool notFound = false)
+    private void ShowOsd(string label, int volumePercent, bool muted, bool notFound = false,
+        string? detail = null)
     {
         _osd ??= new OsdWindow();
-        _osd.ShowOverlay(label, volumePercent, muted, notFound);
+        _osd.ShowOverlay(label, volumePercent, muted, notFound, detail);
     }
 
     protected override void OnExit(ExitEventArgs e)

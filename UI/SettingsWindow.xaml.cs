@@ -10,6 +10,7 @@ namespace VolumeMixer.UI;
 public partial class SettingsWindow : Window
 {
     private readonly List<VolumeBinding> _bindings = new();
+    private readonly List<VolumeProfile> _profiles = new();
     private readonly List<string> _activeProcesses;
 
     public SettingsWindow()
@@ -32,8 +33,19 @@ public partial class SettingsWindow : Window
             });
         }
 
+        foreach (var p in s.Profiles)
+        {
+            _profiles.Add(new VolumeProfile
+            {
+                Name = p.Name,
+                Hotkey = p.Hotkey,
+                Levels = new Dictionary<string, RememberedLevel>(p.Levels, StringComparer.OrdinalIgnoreCase),
+            });
+        }
+
         OverlayHotkeyBox.Gesture = s.ToggleOverlay;
         AutostartCheck.IsChecked = AutostartService.IsEnabled();
+        UpdateCheck.IsChecked = s.CheckForUpdates;
         FocusLostCheck.IsChecked = s.CloseOverlayOnFocusLost;
         RememberCheck.IsChecked = s.RememberVolumes;
         UpdateForgetButton();
@@ -42,6 +54,7 @@ public partial class SettingsWindow : Window
         _activeProcesses = GetActiveProcesses();
 
         BuildBindingRows();
+        BuildProfileRows();
     }
 
     private static List<string> GetActiveProcesses()
@@ -226,6 +239,10 @@ public partial class SettingsWindow : Window
 
         s.CloseOverlayOnFocusLost = FocusLostCheck.IsChecked == true;
         s.RememberVolumes = RememberCheck.IsChecked == true;
+        s.CheckForUpdates = UpdateCheck.IsChecked == true;
+
+        // Keep only profiles that actually captured something.
+        s.Profiles = _profiles.Where(p => p.Levels.Count > 0).ToList();
 
         if (int.TryParse(StepBox.Text, out var pct))
             s.DefaultStep = Math.Clamp(pct, 1, 100) / 100f;
@@ -272,6 +289,212 @@ public partial class SettingsWindow : Window
             ? "No remembered volumes yet"
             : $"Forget remembered volumes ({count})";
         ForgetButton.IsEnabled = count > 0;
+    }
+
+    // ---- Profiles ----------------------------------------------------------
+
+    private void BuildProfileRows()
+    {
+        ProfilesPanel.Children.Clear();
+        foreach (var p in _profiles)
+            ProfilesPanel.Children.Add(BuildProfileRow(p));
+
+        NoProfilesHint.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private FrameworkElement BuildProfileRow(VolumeProfile profile)
+    {
+        var card = new Border
+        {
+            Background = (Brush)TryFindResource("CardBrush") ?? Brushes.DimGray,
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+
+        var root = new StackPanel();
+        card.Child = root;
+
+        var top = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 10) };
+
+        var remove = new Button
+        {
+            Content = "✕",
+            Style = (Style)TryFindResource("FlatButton"),
+            Padding = new Thickness(9, 5, 9, 5),
+            Margin = new Thickness(8, 0, 0, 0),
+            ToolTip = "Delete profile",
+        };
+        remove.Click += (_, _) => { _profiles.Remove(profile); BuildProfileRows(); };
+        DockPanel.SetDock(remove, Dock.Right);
+        top.Children.Add(remove);
+
+        var apply = new Button
+        {
+            Content = "Apply",
+            Style = (Style)TryFindResource("FlatButton"),
+            Padding = new Thickness(12, 5, 12, 5),
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        apply.Click += (_, _) => App.Instance.ApplyProfile(profile);
+        DockPanel.SetDock(apply, Dock.Right);
+        top.Children.Add(apply);
+
+        var recapture = new Button
+        {
+            Content = "Update from current",
+            Style = (Style)TryFindResource("FlatButton"),
+            Padding = new Thickness(12, 5, 12, 5),
+            Margin = new Thickness(8, 0, 0, 0),
+            ToolTip = "Replace this profile's levels with what is playing right now",
+        };
+        recapture.Click += (_, _) =>
+        {
+            profile.Levels = CaptureCurrentMix();
+            BuildProfileRows();
+            StatusText.Foreground = (Brush)TryFindResource("SubtleBrush");
+            StatusText.Text = $"“{profile.Label}” updated from the current mix";
+        };
+        DockPanel.SetDock(recapture, Dock.Right);
+        top.Children.Add(recapture);
+
+        var nameBox = new TextBox
+        {
+            Style = (Style)TryFindResource("DarkTextBox"),
+            Text = profile.Name,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        nameBox.TextChanged += (_, _) => profile.Name = nameBox.Text.Trim();
+        top.Children.Add(nameBox);
+
+        root.Children.Add(top);
+
+        var bottom = new DockPanel { LastChildFill = false };
+
+        var hotkeyLabel = new TextBlock
+        {
+            Text = "Hotkey",
+            Foreground = (Brush)TryFindResource("SubtleBrush"),
+            FontSize = 11.5,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 8, 0),
+        };
+        DockPanel.SetDock(hotkeyLabel, Dock.Left);
+        bottom.Children.Add(hotkeyLabel);
+
+        var hotkeyBox = new HotkeyBox
+        {
+            Style = (Style)TryFindResource("FlatButton"),
+            Gesture = profile.Hotkey,
+            MinWidth = 150,
+        };
+        hotkeyBox.GestureCommitted += (_, _) => profile.Hotkey = hotkeyBox.Gesture;
+        DockPanel.SetDock(hotkeyBox, Dock.Left);
+        bottom.Children.Add(hotkeyBox);
+
+        var summary = new TextBlock
+        {
+            Text = describe(profile),
+            Foreground = (Brush)TryFindResource("SubtleBrush"),
+            FontSize = 11.5,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 260,
+        };
+        DockPanel.SetDock(summary, Dock.Left);
+        bottom.Children.Add(summary);
+
+        root.Children.Add(bottom);
+        return card;
+
+        static string describe(VolumeProfile p)
+        {
+            if (p.Levels.Count == 0) return "no apps captured";
+            var parts = p.Levels.Take(4).Select(kv =>
+                $"{kv.Key} {(kv.Value.Muted ? "muted" : Math.Round(kv.Value.Volume * 100) + "%")}");
+            var text = string.Join(", ", parts);
+            return p.Levels.Count > 4 ? $"{text}, +{p.Levels.Count - 4} more" : text;
+        }
+    }
+
+    private static Dictionary<string, RememberedLevel> CaptureCurrentMix()
+    {
+        var result = new Dictionary<string, RememberedLevel>(StringComparer.OrdinalIgnoreCase);
+        using var snap = App.Instance.Audio.GetSessions();
+        foreach (var g in snap.BuildGroups())
+        {
+            if (string.Equals(g.ProcessName, "System", StringComparison.OrdinalIgnoreCase)) continue;
+            result[g.ProcessName.ToLowerInvariant()] = new RememberedLevel
+            {
+                Volume = (float)(g.VolumePercent / 100.0),
+                Muted = g.IsMuted,
+            };
+        }
+        return result;
+    }
+
+    private void AddProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var levels = CaptureCurrentMix();
+        if (levels.Count == 0)
+        {
+            StatusText.Foreground = (Brush)TryFindResource("DangerBrush");
+            StatusText.Text = "Nothing is playing — start some audio first, then save the mix";
+            return;
+        }
+
+        _profiles.Add(new VolumeProfile
+        {
+            Name = $"Profile {_profiles.Count + 1}",
+            Levels = levels,
+        });
+        BuildProfileRows();
+    }
+
+    // ---- Updates -----------------------------------------------------------
+
+    private UpdateInfo? _pendingUpdate;
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateButton.IsEnabled = false;
+        InstallUpdateButton.Visibility = Visibility.Collapsed;
+        UpdateStatus.Foreground = (Brush)TryFindResource("SubtleBrush");
+        UpdateStatus.Text = "Checking…";
+
+        _pendingUpdate = await UpdateService.CheckAsync();
+
+        CheckUpdateButton.IsEnabled = true;
+        if (_pendingUpdate is null)
+        {
+            UpdateStatus.Text = $"You're on the latest version (v{UpdateService.CurrentVersion.ToString(3)}).";
+            return;
+        }
+
+        UpdateStatus.Text = $"Version {_pendingUpdate.Tag} is available.";
+        InstallUpdateButton.Visibility = Visibility.Visible;
+    }
+
+    private async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate is null) return;
+
+        InstallUpdateButton.IsEnabled = false;
+        UpdateStatus.Foreground = (Brush)TryFindResource("SubtleBrush");
+        UpdateStatus.Text = "Downloading…";
+
+        var error = await UpdateService.DownloadAndApplyAsync(_pendingUpdate);
+        if (error is null)
+        {
+            UpdateStatus.Text = "Updated — restarting…";
+            Application.Current.Shutdown();
+            return;
+        }
+
+        InstallUpdateButton.IsEnabled = true;
+        UpdateStatus.Foreground = (Brush)TryFindResource("DangerBrush");
+        UpdateStatus.Text = error;
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

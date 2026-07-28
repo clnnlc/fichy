@@ -24,6 +24,12 @@ public sealed class VolumeWatcher : IDisposable
     private readonly List<MMDevice> _subscribed = new();
     private readonly object _subLock = new();
 
+    /// <summary>Re-subscribes when endpoints appear or disappear.</summary>
+    private readonly DeviceNotifier _devices = new();
+
+    /// <summary>Coalesces the burst of notifications a single hot-plug produces.</summary>
+    private readonly System.Timers.Timer _resubscribe;
+
     private volatile bool _stopped;
 
     public VolumeWatcher()
@@ -36,12 +42,30 @@ public sealed class VolumeWatcher : IDisposable
             // Dispose must not resurrect the timer.
             finally { if (!_stopped) { try { _timer.Start(); } catch { } } }
         };
+
+        // A single plug-in fires several notifications; settle before re-subscribing.
+        _resubscribe = new System.Timers.Timer(500) { AutoReset = false };
+        _resubscribe.Elapsed += (_, _) =>
+        {
+            if (_stopped) return;
+            try { SubscribeToDevices(); } catch { }
+        };
     }
 
     public void Start()
     {
         SubscribeToDevices();
+
+        _devices.Changed += OnDevicesChanged;
+        _devices.Start();
+
         _timer.Start();
+    }
+
+    private void OnDevicesChanged()
+    {
+        if (_stopped) return;
+        try { _resubscribe.Stop(); _resubscribe.Start(); } catch { }
     }
 
     /// <summary>
@@ -192,6 +216,13 @@ public sealed class VolumeWatcher : IDisposable
     public void Dispose()
     {
         _stopped = true;
+
+        _devices.Changed -= OnDevicesChanged;
+        _devices.Dispose();
+
+        _resubscribe.Stop();
+        _resubscribe.Dispose();
+
         _timer.Stop();
         _timer.Dispose();
 
