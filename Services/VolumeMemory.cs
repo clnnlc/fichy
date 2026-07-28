@@ -16,6 +16,7 @@ public static class VolumeMemory
     private static SettingsService? _settings;
     private static readonly object Gate = new();
     private static DateTime _lastSave = DateTime.MinValue;
+    private static System.Timers.Timer? _trailingSave;
 
     public static void Configure(SettingsService settings) => _settings = settings;
 
@@ -80,15 +81,53 @@ public static class VolumeMemory
         _settings.Save();
     }
 
-    /// <summary>Persist at most once every few seconds — dragging a slider fires constantly.</summary>
+    /// <summary>
+    /// Persist at most once every few seconds — dragging a slider fires
+    /// constantly. A suppressed write is not dropped: it is re-armed on a
+    /// trailing timer so the final value still reaches disk without waiting
+    /// for a clean exit.
+    /// </summary>
     private static void SaveThrottled()
     {
         if (_settings is null) return;
-        if ((DateTime.UtcNow - _lastSave).TotalSeconds < 3) return;
-        _lastSave = DateTime.UtcNow;
+
+        lock (Gate)
+        {
+            if ((DateTime.UtcNow - _lastSave).TotalSeconds < 3)
+            {
+                ArmTrailingSave();
+                return;
+            }
+
+            _lastSave = DateTime.UtcNow;
+        }
+
         _settings.Save();
     }
 
+    /// <summary>Schedules the write that the throttle just suppressed. Caller holds <see cref="Gate"/>.</summary>
+    private static void ArmTrailingSave()
+    {
+        if (_trailingSave is null)
+        {
+            _trailingSave = new System.Timers.Timer(3000) { AutoReset = false };
+            _trailingSave.Elapsed += (_, _) =>
+            {
+                lock (Gate) { _lastSave = DateTime.UtcNow; }
+                try { _settings?.Save(); } catch { }
+            };
+        }
+
+        // Restart so a burst of changes settles into a single write.
+        _trailingSave.Stop();
+        _trailingSave.Start();
+    }
+
     /// <summary>Flush pending changes (called on exit).</summary>
-    public static void Flush() => _settings?.Save();
+    public static void Flush()
+    {
+        _trailingSave?.Stop();
+        lock (Gate) { _lastSave = DateTime.UtcNow; }
+        _settings?.Save();
+    }
 }

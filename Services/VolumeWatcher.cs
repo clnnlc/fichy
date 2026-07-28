@@ -16,13 +16,15 @@ public sealed class VolumeWatcher : IDisposable
 {
     private readonly System.Timers.Timer _timer;
 
-    /// <summary>Session instance id → the volume we last observed on it.</summary>
-    private readonly Dictionary<string, float> _seen = new(StringComparer.Ordinal);
+    /// <summary>Session instance id → the volume and mute we last observed on it.</summary>
+    private readonly Dictionary<string, (float Volume, bool Muted)> _seen = new(StringComparer.Ordinal);
     private bool _primed;
 
     /// <summary>Devices we hold open purely to receive their session-created events.</summary>
     private readonly List<MMDevice> _subscribed = new();
     private readonly object _subLock = new();
+
+    private volatile bool _stopped;
 
     public VolumeWatcher()
     {
@@ -30,7 +32,9 @@ public sealed class VolumeWatcher : IDisposable
         _timer.Elapsed += (_, _) =>
         {
             try { Poll(); } catch { /* audio stack transient */ }
-            finally { try { _timer.Start(); } catch { } }
+            // Re-arm only if we are still running: a poll in flight during
+            // Dispose must not resurrect the timer.
+            finally { if (!_stopped) { try { _timer.Start(); } catch { } } }
         };
     }
 
@@ -39,8 +43,6 @@ public sealed class VolumeWatcher : IDisposable
         SubscribeToDevices();
         _timer.Start();
     }
-
-    public void Stop() => _timer.Stop();
 
     /// <summary>
     /// Subscribes to each device's session-created notification so a new track's
@@ -94,17 +96,11 @@ public sealed class VolumeWatcher : IDisposable
             var id = SafeInstanceId(ctrl);
             if (id.Length > 0)
             {
-                lock (_seen) { _seen[id] = level.Volume; }
+                lock (_seen) { _seen[id] = (level.Volume, level.Muted); }
             }
         }
         catch { }
     }
-
-    /// <summary>
-    /// Forget which sessions we've seen so the next poll re-applies remembered
-    /// levels. Used when the user changes the remembered value themselves.
-    /// </summary>
-    public void Reset() { lock (_seen) { _seen.Clear(); } }
 
     private void Poll()
     {
@@ -130,28 +126,30 @@ public sealed class VolumeWatcher : IDisposable
                     var vol = ctrl.SimpleAudioVolume;
                     float current = vol.Volume;
 
+                    bool currentMute = vol.Mute;
+
                     bool known;
-                    float previous;
+                    (float Volume, bool Muted) previous;
                     lock (_seen) { known = _seen.TryGetValue(id, out previous); }
 
                     if (known)
                     {
-                        // Known session. If its level moved since we last looked,
-                        // something else changed it (the Windows mixer, the app's
-                        // own slider) — follow that instead of overruling it, so
-                        // the next session inherits the level the user expects.
-                        if (Math.Abs(current - previous) > 0.005f)
+                        // Known session. If its level or mute moved since we last
+                        // looked, something else changed it (the Windows mixer, the
+                        // app's own slider) — follow that instead of overruling it,
+                        // so the next session inherits the state the user expects.
+                        if (Math.Abs(current - previous.Volume) > 0.005f || currentMute != previous.Muted)
                         {
                             var owner = AudioSession.ResolveProcessName(ctrl);
                             if (!string.IsNullOrEmpty(owner) && VolumeMemory.Get(owner) is not null)
-                                VolumeMemory.Remember(owner, current, vol.Mute);
-                            lock (_seen) { _seen[id] = current; }
+                                VolumeMemory.Remember(owner, current, currentMute);
+                            lock (_seen) { _seen[id] = (current, currentMute); }
                         }
                         continue;
                     }
 
                     // Brand new session.
-                    lock (_seen) { _seen[id] = current; }
+                    lock (_seen) { _seen[id] = (current, currentMute); }
 
                     // The first pass only records what already exists; it must not
                     // override levels that were set before fichy started.
@@ -164,12 +162,11 @@ public sealed class VolumeWatcher : IDisposable
                     if (level is null) continue;
 
                     if (Math.Abs(current - level.Volume) > 0.001f)
-                    {
                         vol.Volume = level.Volume;
-                        lock (_seen) { _seen[id] = level.Volume; }
-                    }
-                    if (vol.Mute != level.Muted)
+                    if (currentMute != level.Muted)
                         vol.Mute = level.Muted;
+
+                    lock (_seen) { _seen[id] = (level.Volume, level.Muted); }
                 }
             }
             catch { }
@@ -194,6 +191,7 @@ public sealed class VolumeWatcher : IDisposable
 
     public void Dispose()
     {
+        _stopped = true;
         _timer.Stop();
         _timer.Dispose();
 
